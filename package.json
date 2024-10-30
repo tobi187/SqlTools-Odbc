@@ -1,12 +1,12 @@
 {
-  "name": "driver-template",
-  "displayName": "Driver Template",
+  "name": "sqltools-db2",
+  "displayName": "SqlTools Db2",
   "description": "Driver Template to be used as base for new VSCode SQLTools drivers",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.42.0"
   },
-  "publisher": "mtxr",
+  "publisher": "tobi187",
   "license": "MIT",
   "repository": {},
   "bugs": {},
@@ -37,6 +37,7 @@
   "dependencies": {
     "@sqltools/base-driver": "latest",
     "@sqltools/types": "latest",
+    "odbc": "^2.4.9",
     "uuid": "^7.0.2"
   },
   "devDependencies": {
