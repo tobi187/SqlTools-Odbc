@@ -1,6 +1,6 @@
 {
-  "name": "sqltools-db2",
-  "displayName": "SqlTools Db2",
+  "name": "sqltools-odbc",
+  "displayName": "SqlTools Odbc",
   "description": "Driver Template to be used as base for new VSCode SQLTools drivers",
   "version": "0.0.1",
   "engines": {
