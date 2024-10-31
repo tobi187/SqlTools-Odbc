@@ -1,14 +1,15 @@
 import AbstractDriver from '@sqltools/base-driver'
 import queries from './queries'
+import { AS400Queries, CustomQueries } from './queries'
 import {
     IConnectionDriver,
     MConnectionExplorer,
     NSDatabase,
     ContextValue,
     Arg0,
+    IBaseQueries,
 } from '@sqltools/types'
 import { v4 as generateId } from 'uuid'
-import odbc from 'odbc'
 
 /**
  * set Driver lib to the type of your connection.
@@ -23,31 +24,6 @@ import odbc from 'odbc'
 type DriverLib = any // Pool
 type DriverOptions = any // PoolParameters
 
-/**
- * MOCKED DB DRIVER
- * THIS IS JUST AN EXAMPLE AND THE LINES BELOW SHOULD BE REMOVED!
- */
-// import fakeDbLib from './mylib'; // this is what you should do
-const fakeDbLib = {
-    open: () => Promise.resolve(fakeDbLib),
-    query: (..._args: any[]) => {
-        const nResults = parseInt((Math.random() * 1000).toFixed(0))
-        const nCols = parseInt((Math.random() * 100).toFixed(0))
-        const colNames = [...new Array(nCols)].map((_, index) => `col${index}`)
-        const generateRow = () => {
-            const row = {}
-            colNames.forEach((c) => {
-                row[c] = Math.random() * 1000
-            })
-            return row
-        }
-        const results = [...new Array(nResults)].map(generateRow)
-        return Promise.resolve([results])
-    },
-    close: () => Promise.resolve(),
-}
-
-/* LINES ABOVE CAN BE REMOVED */
 
 export default class OdbcDriver
     extends AbstractDriver<DriverLib, DriverOptions>
@@ -60,11 +36,24 @@ export default class OdbcDriver
         {
             type: AbstractDriver.CONSTANTS.DEPENDENCY_PACKAGE,
             name: 'odbc',
-            // version: 'x.x.x',
+            version: '2.4.9',
         },
     ]
 
+    private get customQuery():IBaseQueries {
+        switch (this.credentials.dbType) {
+            case "ibm iSeries (AS400)":
+                return new AS400Queries()
+            default:
+                return new CustomQueries()
+        }
+    }
+
     queries = queries
+    /**
+     *
+     */
+    
 
     /** if you need to require your lib in runtime and then
      * use `this.lib.methodName()` anywhere and vscode will take care of the dependencies
@@ -75,27 +64,31 @@ export default class OdbcDriver
     }
 
     createConnectionString() {
-        if (this.credentials.connectString) {
-            return this.credentials.connectString
+        if (this.credentials.connectionString) {
+            return this.credentials.connectionString
         }
-        throw new Error("not implemented")
+        throw new Error("not implemented 1")
     }
 
     public async open() {
         if (this.connection) {
             return this.connection
         }
-        const { connect } = this.lib
-
-        const conn = connect(this.createConnectionString())
-
-        /**
-         * open your connection here!!!
-         */
-
-        // this.connection = fakeDbLib.open()
-        this.connection = conn
-        return this.connection
+        try {
+            const { connect } = this.lib
+            const conn = connect(this.createConnectionString())
+    
+            /**
+             * open your connection here!!!
+             */
+    
+            // this.connection = fakeDbLib.open()
+            this.connection = conn
+            return Promise.resolve(conn)
+        } catch (err) {
+            console.log(err)
+            throw(err)
+        }
     }
 
     public async close() {
@@ -103,7 +96,7 @@ export default class OdbcDriver
         /**
          * cose you connection here!!
          */
-        const conn = await this.connection as odbc.Connection
+        const conn = await this.connection // as odbc.Connection
         conn.close()
         this.connection = null
     }
@@ -112,26 +105,38 @@ export default class OdbcDriver
         queries,
         opt = {}
     ) => {
-        const db = await this.open() as odbc.Connection
-        const queriesResults = await db.query(queries.toString())
+        const db = await this.open() // as odbc.Connection
+        // hopefully this works: https://stackoverflow.com/questions/24423260/split-sql-statements-in-php-on-semicolons-but-not-inside-quotes
+        const regex = /((?:[^;'"]*(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*')[^;'"]*)+)|;/
+        const splittedQueries = queries.toString().split(regex).filter(Boolean) // <- maybe check Regex again
         const resultsAgg: NSDatabase.IResult[] = []
-        queriesResults.forEach((queryResult) => {
+        for (const q of splittedQueries)  {
+            let result = null
+            let message = ""
+            try {
+                const res = await db.query(q)
+                result = res
+                message = `Query ok with ${result.length} results`
+            } catch(ex) {
+                message = `Execution failed with: ${ex}`
+            }
+
             resultsAgg.push({
-                cols: queriesResults.columns.map(col => col.name),
+                cols: result?.columns?.map(col => col.name) || [],
                 connId: this.getId(),
                 messages: [
                     {
                         date: new Date(),
-                        message: `Query ok with ${queriesResults.length} results`,
+                        message,
                     },
                 ],
                 // trim ??
-                results: Object.values(queryResult),
-                query: queries.toString(),
+                results: result ?? [],
+                query: q,
                 requestId: opt.requestId,
                 resultId: generateId(),
             })
-        })
+        }
         /**
          * write the method to execute queries here!!
          */
@@ -143,7 +148,8 @@ export default class OdbcDriver
      */
     public async testConnection() {
         await this.open()
-        await this.query('SELECT 1', {})
+        // await this.query('SELECT 1', {}) <- doesn't work with as400
+        await this.close()
     }
 
     /**
@@ -152,88 +158,51 @@ export default class OdbcDriver
      */
     public async getChildrenForItem({
         item,
-        parent,
+        //parent,
     }: Arg0<IConnectionDriver['getChildrenForItem']>) {
         switch (item.type) {
             case ContextValue.CONNECTION:
             case ContextValue.CONNECTED_CONNECTION:
-                return <MConnectionExplorer.IChildItem[]>[
-                    {
-                        label: 'Tables',
-                        type: ContextValue.RESOURCE_GROUP,
-                        iconId: 'folder',
-                        childType: ContextValue.TABLE,
-                    },
-                    {
-                        label: 'Views',
-                        type: ContextValue.RESOURCE_GROUP,
-                        iconId: 'folder',
-                        childType: ContextValue.VIEW,
-                    },
-                ]
+                // return <MConnectionExplorer.IChildItem[]>[
+                //     { label: 'Databases', 'type': ContextValue.DATABASE, iconId: 'folder', childType: ContextValue.TABLE }
+                // ]
+            case ContextValue.DATABASE:{
+                const query = this.customQuery.fetchDatabases()
+                if (!query) return []
+                const results = await this.queryResults(query)
+                return results.map((schema) => ({
+                    label: schema['DATABASE'],
+                    database: schema['DATABASE'],
+                    schema: schema['DATABASE'],
+                    type: ContextValue.SCHEMA,
+                    iconId: 'folder',
+                    // childType: ContextValue.TABLE // <- WTF ?? What this for
+                }))
+            }
             case ContextValue.TABLE:
-            case ContextValue.VIEW:
-                // return this.queryResults(queries.fetchTables())
-                let i = 0
-                return <NSDatabase.IColumn[]>[
-                    {
-                        database: 'fakedb',
-                        label: `column${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: parent,
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `column${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: parent,
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `column${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: parent,
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `column${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: parent,
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `column${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: parent,
-                    },
-                ]
-            case ContextValue.RESOURCE_GROUP:
-                return this.getChildrenForGroup({ item, parent })
+            case ContextValue.VIEW: {
+                const query = this.customQuery.fetchColumns(item as NSDatabase.ITable)
+                if (!query) return []
+                const results = await this.queryResults(query)
+                return <NSDatabase.IColumn[]>results.map(res => ({
+                    database: item.database,
+                    table: item.label,
+                    label: res['COLUMN_NAME'],
+                    dataType: res['DATA_TYPE'],
+                    type: ContextValue.COLUMN,
+                }))
+            }
+            case ContextValue.SCHEMA: {
+                    const query = this.customQuery.fetchTables(item as NSDatabase.ISchema)
+                    if (!query) return []
+                    const results = await this.queryResults(query)
+                    return <MConnectionExplorer.IChildItem[]>results.map(res => ({
+                        database: item.label,
+                        label: res['TABLE_NAME'],
+                        type: ContextValue.TABLE,
+                        iconId: 'table'
+                    }))
+                }
         }
         return []
     }
@@ -242,41 +211,42 @@ export default class OdbcDriver
      * This method is a helper to generate the connection explorer tree.
      * It gets the child based on child types
      */
-    private async getChildrenForGroup({
-        parent,
-        item,
-    }: Arg0<IConnectionDriver['getChildrenForItem']>) {
-        console.log({ item, parent })
-        switch (item.childType) {
-            case ContextValue.TABLE:
-            case ContextValue.VIEW:
-                let i = 0
-                return <MConnectionExplorer.IChildItem[]>[
-                    {
-                        database: 'fakedb',
-                        label: `${item.childType}${i++}`,
-                        type: item.childType,
-                        schema: 'fakeschema',
-                        childType: ContextValue.COLUMN,
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `${item.childType}${i++}`,
-                        type: item.childType,
-                        schema: 'fakeschema',
-                        childType: ContextValue.COLUMN,
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `${item.childType}${i++}`,
-                        type: item.childType,
-                        schema: 'fakeschema',
-                        childType: ContextValue.COLUMN,
-                    },
-                ]
-        }
-        return []
-    }
+    // private async getChildrenForGroup({
+    //     parent,
+    //     item,
+    // }: Arg0<IConnectionDriver['getChildrenForItem']>) {
+    //     console.log({ item, parent })
+    //     switch (item.childType) {
+    //         case ContextValue.TABLE:
+    //         case ContextValue.VIEW:
+    //             let i = 0
+             
+    //             return <MConnectionExplorer.IChildItem[]>[
+    //                 {
+    //                     database: 'fakedb',
+    //                     label: `${item.childType}${i++}`,
+    //                     type: item.childType,
+    //                     schema: 'fakeschema',
+    //                     childType: ContextValue.COLUMN,
+    //                 },
+    //                 {
+    //                     database: 'fakedb',
+    //                     label: `${item.childType}${i++}`,
+    //                     type: item.childType,
+    //                     schema: 'fakeschema',
+    //                     childType: ContextValue.COLUMN,
+    //                 },
+    //                 {
+    //                     database: 'fakedb',
+    //                     label: `${item.childType}${i++}`,
+    //                     type: item.childType,
+    //                     schema: 'fakeschema',
+    //                     childType: ContextValue.COLUMN,
+    //                 },
+    //             ]
+    //     }
+    //     return []
+    // }
 
     /**
      * This method is a helper for intellisense and quick picks.
@@ -375,6 +345,37 @@ export default class OdbcDriver
         }
         return []
     }
+
+    getSqlDataType(typeCode:number) {
+        const sqlDataTypes = {
+          '-7': 'BIT',
+          '-6': 'TINYINT',
+          '-5': 'BIGINT',
+          '-4': 'LONGVARBINARY',
+          '-3': 'VARBINARY',
+          '-2': 'BINARY',
+          '-1': 'LONGVARCHAR',
+          '0': 'NULL',
+          '1': 'CHAR',
+          '2': 'NUMERIC',
+          '3': 'DECIMAL',
+          '4': 'INTEGER',
+          '5': 'SMALLINT',
+          '6': 'FLOAT',
+          '7': 'REAL',
+          '8': 'DOUBLE',
+          '9': 'DATE',
+          '10': 'TIME',
+          '11': 'TIMESTAMP',
+          '12': 'VARCHAR',
+          '-8': 'ROWID',
+          '-9': 'WVARCHAR',
+          '-10': 'WCHAR',
+          '-11': 'WCHAR VAR'
+        };
+        
+        return sqlDataTypes[typeCode.toString()] || 'UNKNOWN';
+      }
 
     public getStaticCompletions: IConnectionDriver['getStaticCompletions'] = async () => {
         return {}

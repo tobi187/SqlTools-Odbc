@@ -2,13 +2,22 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "database": {
-      "title": "Database file",
+    "connectionString": {
+      "title": "Connection String",
       "type": "string",
       "minLength": 1
+    },
+    "dbType": {
+      "title": "Database",
+      "type": "string",
+      "enum": [
+        "Custom",
+        "ibm iSeries (AS400)"
+      ],
+      "default": "Custom"
     }
   },
   "required": [
-    "database"
+    "connectionString"
   ]
 }
