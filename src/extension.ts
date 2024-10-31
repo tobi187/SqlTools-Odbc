@@ -21,8 +21,8 @@ export async function activate(extContext: ExtensionContext): Promise<IDriverExt
     async register(extension) {
       // register ext part here
       extension.resourcesMap().set(`driver/${DRIVER_ALIASES[0].value}/icons`, {
-        active: extContext.asAbsolutePath('icons/database.png'),
-        default: extContext.asAbsolutePath('icons/database.png'),
+        active: extContext.asAbsolutePath('icons/db-orange.png'),
+        default: extContext.asAbsolutePath('icons/db-orange.png'),
         inactive: extContext.asAbsolutePath('icons/database.png'),
       });
       DRIVER_ALIASES.forEach(({ value }) => {
