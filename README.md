@@ -1,3 +1,30 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+# <img src="https://github.com/tobi187/SqlTools-Odbc/blob/master/icons/db-orange.png?raw=true"  style="height:1em;"/> Odbc Connection for SQLTools
+
+Connect to your favorite Database with the Power of ODBC
+
+## Install
+
+Coming Soon<br>
+Install from the [VSCode Marketplace](link).
+
+## Features
+
+- **Connect** to your favorite Database
+- **Run queries**
+- **Explore DB** tables and columns in the sidebar
+- **View** table results by selecting them in the sidebar
+
+Because the internal Structure of different Databases is vastly different the Sidebar View has to be implemented manually for every Database essentially. This means the Sidebar explorer works only for supported Databases. If you need Support for a new Database just open an Issue in the Repository and I'll try to implement it. In unsupported Databases the Querying should still work maybe <br><br>
+**Currently Supported Databases**
+- IBM iSeries AS400 (iSeries Access ODBC Driver)
+
+## Contributing
+
+- If you encounter bugs or have feature requests, feel free to open an issue.
+- PRs welcome
+
 # SQLTools Driver Template Repository
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Y8Y487W9)
