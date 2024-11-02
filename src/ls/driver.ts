@@ -40,7 +40,7 @@ export default class OdbcDriver
         },
     ]
 
-    private get customQuery():IBaseQueries {
+    private get customQuery(): IBaseQueries {
         switch (this.credentials.dbType) {
             case "ibm iSeries (AS400)":
                 return new AS400Queries()
@@ -50,20 +50,17 @@ export default class OdbcDriver
     }
 
     queries = queries
-    /**
-     *
-     */
-    
 
     /** if you need to require your lib in runtime and then
      * use `this.lib.methodName()` anywhere and vscode will take care of the dependencies
      * to be installed on a cache folder
      **/
     private get lib() {
-      return this.requireDep('odbc') as typeof import("odbc");
+        return this.requireDep('odbc') as typeof import("odbc");
     }
 
     createConnectionString() {
+        console.log(this.credentials.connectionString)
         if (this.credentials.connectionString) {
             return this.credentials.connectionString
         }
@@ -76,18 +73,18 @@ export default class OdbcDriver
         }
         try {
             const { connect } = this.lib
-            const conn = connect(this.createConnectionString())
-    
+            const conn = await connect(this.createConnectionString())
+
             /**
              * open your connection here!!!
              */
-    
+
             // this.connection = fakeDbLib.open()
-            this.connection = conn
+            this.connection = Promise.resolve(conn)
             return Promise.resolve(conn)
         } catch (err) {
             console.log(err)
-            throw(err)
+            throw (err)
         }
     }
 
@@ -110,15 +107,17 @@ export default class OdbcDriver
         const regex = /((?:[^;'"]*(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*')[^;'"]*)+)|;/
         const splittedQueries = queries.toString().split(regex).filter(Boolean) // <- maybe check Regex again
         const resultsAgg: NSDatabase.IResult[] = []
-        for (const q of splittedQueries)  {
+        for (const q of splittedQueries) {
             let result = null
             let message = ""
+            let exception = null
             try {
                 const res = await db.query(q)
                 result = res
                 message = `Query ok with ${result.length} results`
-            } catch(ex) {
+            } catch (ex) {
                 message = `Execution failed with: ${ex}`
+                exception = ex
             }
 
             resultsAgg.push({
@@ -130,9 +129,9 @@ export default class OdbcDriver
                         message,
                     },
                 ],
-                // trim ??
                 results: result ?? [],
                 query: q,
+                rawError: exception,
                 requestId: opt.requestId,
                 resultId: generateId(),
             })
@@ -142,6 +141,11 @@ export default class OdbcDriver
          */
         return resultsAgg
     }
+
+    // trimResults(results) {
+    //     if (!results) return []
+    //     results.
+    // }
 
     /** if you need a different way to test your connection, you can set it here.
      * Otherwise by default we open and close the connection only
@@ -163,10 +167,10 @@ export default class OdbcDriver
         switch (item.type) {
             case ContextValue.CONNECTION:
             case ContextValue.CONNECTED_CONNECTION:
-                // return <MConnectionExplorer.IChildItem[]>[
-                //     { label: 'Databases', 'type': ContextValue.DATABASE, iconId: 'folder', childType: ContextValue.TABLE }
-                // ]
-            case ContextValue.DATABASE:{
+            // return <MConnectionExplorer.IChildItem[]>[
+            //     { label: 'Databases', 'type': ContextValue.DATABASE, iconId: 'folder', childType: ContextValue.TABLE }
+            // ]
+            case ContextValue.DATABASE: {
                 const query = this.customQuery.fetchDatabases()
                 if (!query) return []
                 const results = await this.queryResults(query)
@@ -193,16 +197,16 @@ export default class OdbcDriver
                 }))
             }
             case ContextValue.SCHEMA: {
-                    const query = this.customQuery.fetchTables(item as NSDatabase.ISchema)
-                    if (!query) return []
-                    const results = await this.queryResults(query)
-                    return <MConnectionExplorer.IChildItem[]>results.map(res => ({
-                        database: item.label,
-                        label: res['TABLE_NAME'],
-                        type: ContextValue.TABLE,
-                        iconId: 'table'
-                    }))
-                }
+                const query = this.customQuery.fetchTables(item as NSDatabase.ISchema)
+                if (!query) return []
+                const results = await this.queryResults(query)
+                return <MConnectionExplorer.IChildItem[]>results.map(res => ({
+                    database: item.label,
+                    label: res['TABLE_NAME'],
+                    type: ContextValue.TABLE,
+                    iconId: 'table'
+                }))
+            }
         }
         return []
     }
@@ -220,7 +224,7 @@ export default class OdbcDriver
     //         case ContextValue.TABLE:
     //         case ContextValue.VIEW:
     //             let i = 0
-             
+
     //             return <MConnectionExplorer.IChildItem[]>[
     //                 {
     //                     database: 'fakedb',
@@ -346,36 +350,36 @@ export default class OdbcDriver
         return []
     }
 
-    getSqlDataType(typeCode:number) {
+    getSqlDataType(typeCode: number) {
         const sqlDataTypes = {
-          '-7': 'BIT',
-          '-6': 'TINYINT',
-          '-5': 'BIGINT',
-          '-4': 'LONGVARBINARY',
-          '-3': 'VARBINARY',
-          '-2': 'BINARY',
-          '-1': 'LONGVARCHAR',
-          '0': 'NULL',
-          '1': 'CHAR',
-          '2': 'NUMERIC',
-          '3': 'DECIMAL',
-          '4': 'INTEGER',
-          '5': 'SMALLINT',
-          '6': 'FLOAT',
-          '7': 'REAL',
-          '8': 'DOUBLE',
-          '9': 'DATE',
-          '10': 'TIME',
-          '11': 'TIMESTAMP',
-          '12': 'VARCHAR',
-          '-8': 'ROWID',
-          '-9': 'WVARCHAR',
-          '-10': 'WCHAR',
-          '-11': 'WCHAR VAR'
+            '-7': 'BIT',
+            '-6': 'TINYINT',
+            '-5': 'BIGINT',
+            '-4': 'LONGVARBINARY',
+            '-3': 'VARBINARY',
+            '-2': 'BINARY',
+            '-1': 'LONGVARCHAR',
+            '0': 'NULL',
+            '1': 'CHAR',
+            '2': 'NUMERIC',
+            '3': 'DECIMAL',
+            '4': 'INTEGER',
+            '5': 'SMALLINT',
+            '6': 'FLOAT',
+            '7': 'REAL',
+            '8': 'DOUBLE',
+            '9': 'DATE',
+            '10': 'TIME',
+            '11': 'TIMESTAMP',
+            '12': 'VARCHAR',
+            '-8': 'ROWID',
+            '-9': 'WVARCHAR',
+            '-10': 'WCHAR',
+            '-11': 'WCHAR VAR'
         };
-        
+
         return sqlDataTypes[typeCode.toString()] || 'UNKNOWN';
-      }
+    }
 
     public getStaticCompletions: IConnectionDriver['getStaticCompletions'] = async () => {
         return {}
