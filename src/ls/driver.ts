@@ -1,5 +1,5 @@
 import AbstractDriver from '@sqltools/base-driver'
-import queries from './queries'
+import queries, { MSSQLQueries } from './queries'
 import { AS400Queries, CustomQueries } from './queries'
 import {
     IConnectionDriver,
@@ -10,6 +10,7 @@ import {
     IBaseQueries,
 } from '@sqltools/types'
 import { v4 as generateId } from 'uuid'
+import { Pool, PoolParameters } from 'odbc'
 
 /**
  * set Driver lib to the type of your connection.
@@ -21,8 +22,8 @@ import { v4 as generateId } from 'uuid'
  *
  * This will give you completions inside of the library
  */
-type DriverLib = any // Pool
-type DriverOptions = any // PoolParameters
+type DriverLib = Pool // Pool
+type DriverOptions = PoolParameters // PoolParameters
 
 
 export default class OdbcDriver
@@ -44,6 +45,8 @@ export default class OdbcDriver
         switch (this.credentials.dbType) {
             case "ibm iSeries (AS400)":
                 return new AS400Queries()
+            case "Microsoft SQL Server":
+                return new MSSQLQueries()
             default:
                 return new CustomQueries()
         }
@@ -60,7 +63,6 @@ export default class OdbcDriver
     }
 
     createConnectionString() {
-        console.log(this.credentials.connectionString)
         if (this.credentials.connectionString) {
             return this.credentials.connectionString
         }
@@ -72,18 +74,16 @@ export default class OdbcDriver
             return this.connection
         }
         try {
-            const { connect } = this.lib
-            const conn = await connect(this.createConnectionString())
-
+            const { pool } = this.lib
+            const dbPool = await pool(this.createConnectionString())
             /**
              * open your connection here!!!
              */
 
             // this.connection = fakeDbLib.open()
-            this.connection = Promise.resolve(conn)
-            return Promise.resolve(conn)
+            this.connection = Promise.resolve(dbPool)
+            return Promise.resolve(dbPool)
         } catch (err) {
-            console.log(err)
             throw (err)
         }
     }
@@ -93,8 +93,8 @@ export default class OdbcDriver
         /**
          * cose you connection here!!
          */
-        const conn = await this.connection // as odbc.Connection
-        conn.close()
+        const pool = await this.connection
+        await pool.close()
         this.connection = null
     }
 
@@ -102,26 +102,27 @@ export default class OdbcDriver
         queries,
         opt = {}
     ) => {
-        const db = await this.open() // as odbc.Connection
+        const pool = await this.open()
+        const conn = await pool.connect()
         // hopefully this works: https://stackoverflow.com/questions/24423260/split-sql-statements-in-php-on-semicolons-but-not-inside-quotes
         const regex = /((?:[^;'"]*(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*')[^;'"]*)+)|;/
-        const splittedQueries = queries.toString().split(regex).filter(Boolean) // <- maybe check Regex again
+        const splittedQueries = queries.toString().split(regex).filter(Boolean)
         const resultsAgg: NSDatabase.IResult[] = []
         for (const q of splittedQueries) {
             let result = null
             let message = ""
             let exception = null
             try {
-                const res = await db.query(q)
+                const res = await conn.query(q)
                 result = res
-                message = `Query ok with ${result.length} results`
+                message = `Query ok with ${res.count} results`
             } catch (ex) {
-                message = `Execution failed with: ${ex}`
+                message = `Execution failed with: ${ex.message}`
                 exception = ex
             }
-
+            // const colsWithTypes = result?.columns?.map((col:any) => `${col.name} (${this.getSqlDataType(col.dataType)})`)
             resultsAgg.push({
-                cols: result?.columns?.map(col => col.name) || [],
+                cols: result?.columns?.map((col:any) => col.name) || [],
                 connId: this.getId(),
                 messages: [
                     {
@@ -131,28 +132,33 @@ export default class OdbcDriver
                 ],
                 results: result ?? [],
                 query: q,
+                error: exception != null,
                 rawError: exception,
                 requestId: opt.requestId,
                 resultId: generateId(),
             })
         }
-        /**
-         * write the method to execute queries here!!
-         */
+
         return resultsAgg
     }
 
-    // trimResults(results) {
+    // trimResults(results : Result<any>) {
     //     if (!results) return []
-    //     results.
+    //     const cols = results.columns.filter(col => this.isTypeOfString(col.dataType)).map(col => col.name)
+    //     return results.map((el) => {
+    //         for (const col of cols) {
+    //             el[col] = el[col].trim()
+    //         }
+    //     })
     // }
 
     /** if you need a different way to test your connection, you can set it here.
      * Otherwise by default we open and close the connection only
      */
     public async testConnection() {
-        await this.open()
-        // await this.query('SELECT 1', {}) <- doesn't work with as400
+        const pool = await this.open()
+        const conn = await pool.connect()
+        await conn.close()
         await this.close()
     }
 
@@ -210,47 +216,6 @@ export default class OdbcDriver
         }
         return []
     }
-
-    /**
-     * This method is a helper to generate the connection explorer tree.
-     * It gets the child based on child types
-     */
-    // private async getChildrenForGroup({
-    //     parent,
-    //     item,
-    // }: Arg0<IConnectionDriver['getChildrenForItem']>) {
-    //     console.log({ item, parent })
-    //     switch (item.childType) {
-    //         case ContextValue.TABLE:
-    //         case ContextValue.VIEW:
-    //             let i = 0
-
-    //             return <MConnectionExplorer.IChildItem[]>[
-    //                 {
-    //                     database: 'fakedb',
-    //                     label: `${item.childType}${i++}`,
-    //                     type: item.childType,
-    //                     schema: 'fakeschema',
-    //                     childType: ContextValue.COLUMN,
-    //                 },
-    //                 {
-    //                     database: 'fakedb',
-    //                     label: `${item.childType}${i++}`,
-    //                     type: item.childType,
-    //                     schema: 'fakeschema',
-    //                     childType: ContextValue.COLUMN,
-    //                 },
-    //                 {
-    //                     database: 'fakedb',
-    //                     label: `${item.childType}${i++}`,
-    //                     type: item.childType,
-    //                     schema: 'fakeschema',
-    //                     childType: ContextValue.COLUMN,
-    //                 },
-    //             ]
-    //     }
-    //     return []
-    // }
 
     /**
      * This method is a helper for intellisense and quick picks.
@@ -348,6 +313,10 @@ export default class OdbcDriver
                 ]
         }
         return []
+    }
+
+    isTypeOfString(typeNum : number) {
+        return ['-1', '1', '12', '-9', '-10', '-11'].includes(typeNum.toString())
     }
 
     getSqlDataType(typeCode: number) {
