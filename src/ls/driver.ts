@@ -12,16 +12,6 @@ import {
 import { v4 as generateId } from 'uuid'
 import { Pool, PoolParameters } from 'odbc'
 
-/**
- * set Driver lib to the type of your connection.
- * Eg for postgres:
- * import { Pool, PoolConfig } from 'pg';
- * ...
- * type DriverLib = Pool;
- * type DriverOptions = PoolConfig;
- *
- * This will give you completions inside of the library
- */
 type DriverLib = Pool // Pool
 type DriverOptions = PoolParameters // PoolParameters
 
@@ -90,11 +80,7 @@ export default class OdbcDriver
 
     public async close() {
         if (!this.connection) return Promise.resolve()
-        /**
-         * cose you connection here!!
-         */
-        const pool = await this.connection
-        await pool.close()
+        await (await this.connection).close()
         this.connection = null
     }
 
@@ -152,9 +138,6 @@ export default class OdbcDriver
     //     })
     // }
 
-    /** if you need a different way to test your connection, you can set it here.
-     * Otherwise by default we open and close the connection only
-     */
     public async testConnection() {
         const pool = await this.open()
         const conn = await pool.connect()
