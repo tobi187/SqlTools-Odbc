@@ -1,15 +1,18 @@
 {
   "name": "sqltools-odbc",
   "displayName": "SqlTools Odbc",
-  "description": "Driver Template to be used as base for new VSCode SQLTools drivers",
+  "description": "Odbc Driver Support for SqlTools",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.42.0"
   },
   "publisher": "tobi187",
   "license": "MIT",
-  "repository": {},
-  "bugs": {},
+  "repository": "https://github.com/tobi187/SqlTools-Odbc",
+  "bugs": {
+    "url": "https://github.com/tobi187/SqlTools-Odbc/issues"
+  },
+  "icon": "icons/db-orange.png",
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",

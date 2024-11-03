@@ -6,8 +6,7 @@ Connect to your favorite Database with the Power of ODBC
 
 ## Install
 
-Coming Soon<br>
-Install from the [VSCode Marketplace](link).
+Install from the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=tobi187.sqltools-odbc).
 
 ## Features
 
@@ -25,6 +24,12 @@ Because the internal Structure of different Databases is vastly different the Si
 ![alt text](https://github.com/tobi187/SqlTools-Odbc/blob/master/assets/image.png?raw=true)
 
 Currently only Connection Strings are supported, because i don't know if different Odbc Connections require a different format / different Parameters in their Connection String
+
+## Known Limitations
+
+- Db Explorer only works for supported Dbs
+- Mssql
+  - Selects for Tables with Varchar(max) + Varbinary(max) only works when these Columns are at the end. [Look here](https://github.com/r-dbi/odbc/issues/10)
 
 ## Contributing
 
