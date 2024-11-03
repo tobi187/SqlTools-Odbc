@@ -1,30 +1,18 @@
 import { IBaseQueries, ContextValue, NSDatabase, QueryBuilder } from '@sqltools/types';
 import queryFactory from '@sqltools/base-driver/dist/lib/factory';
 
-/** write your queries here go fetch desired data. This queries are just examples copied from SQLite driver */
-
-// interface IDbTypeQueries {
-//   fetchDatabases(): Promise<any>
-//   fetchSchemas(item: NSDatabase.IDatabase): Promise<any>
-//   fetchColumns(item: NSDatabase.ITable): Promise<any>
-//   fetchTables(parent: NSDatabase.ISchema): Promise<any>
-//   fetchViews(parent: NSDatabase.ISchema): Promise<any>
-//   // searchTables: Function
-//   // searchColumns : Function
-// }
-
 class CustomQueries implements IBaseQueries {
-  [id: string]: string | ((params: any) => (string | import("@sqltools/types").IExpectedResult));
-  fetchRecords: QueryBuilder<{ limit: number; offset: number; table: NSDatabase.ITable; }, any>;
-  countRecords: QueryBuilder<{ table: NSDatabase.ITable; }, { total: number; }>;
+  [id: string]: string | ((params: any) => (string | import("@sqltools/types").IExpectedResult))
+  fetchRecords: QueryBuilder<{ limit: number; offset: number; table: NSDatabase.ITable; }, any> = queryFactory``;
+  countRecords: QueryBuilder<{ table: NSDatabase.ITable; }, { total: number; }> = queryFactory``;
   fetchSchemas?: QueryBuilder<NSDatabase.IDatabase, NSDatabase.ISchema> = queryFactory``;
-  fetchDatabases?: QueryBuilder<never, NSDatabase.IDatabase>;
-  fetchTables: QueryBuilder<NSDatabase.ISchema, NSDatabase.ITable>;
-  searchTables: QueryBuilder<{ search: string; limit?: number; }, NSDatabase.ITable>;
-  searchColumns: QueryBuilder<{ search: string; tables: NSDatabase.ITable[]; limit?: number; }, NSDatabase.IColumn>;
-  describeTable: QueryBuilder<NSDatabase.ITable, any>;
-  fetchColumns: QueryBuilder<NSDatabase.ITable, NSDatabase.IColumn>;
-  fetchFunctions?: QueryBuilder<NSDatabase.ISchema, NSDatabase.IFunction>;
+  fetchDatabases?: QueryBuilder<never, NSDatabase.IDatabase> = queryFactory``;
+  fetchTables: QueryBuilder<NSDatabase.ISchema, NSDatabase.ITable> = queryFactory``;
+  searchTables: QueryBuilder<{ search: string; limit?: number; }, NSDatabase.ITable> = queryFactory``;
+  searchColumns: QueryBuilder<{ search: string; tables: NSDatabase.ITable[]; limit?: number; }, NSDatabase.IColumn> = queryFactory``;
+  describeTable: QueryBuilder<NSDatabase.ITable, any> = queryFactory``;
+  fetchColumns: QueryBuilder<NSDatabase.ITable, NSDatabase.IColumn> = queryFactory``;
+  fetchFunctions?: QueryBuilder<NSDatabase.ISchema, NSDatabase.IFunction> = queryFactory``;
 
 } 
 
@@ -36,8 +24,21 @@ class AS400Queries extends CustomQueries {
     select distinct table_name from QSYS2.SYSTABLES where table_schema = '${(p => p.label)}'
   `
   fetchColumns: QueryBuilder<NSDatabase.ITable, NSDatabase.IColumn> = queryFactory`
-    select column_name, data_type from QSYS2.syscolumns where 
+    select COLUMN_NAME, DATA_TYPE from QSYS2.syscolumns where 
     table_schema = '${(p => p.database)}' and table_name = '${p => p.label}' 
+  `
+}
+
+class MSSQLQueries extends CustomQueries {
+  fetchDatabases?: QueryBuilder<never, NSDatabase.IDatabase> = queryFactory`
+    select distinct name as [DATABASE] from master.dbo.sysdatabases
+  `
+  fetchTables: QueryBuilder<NSDatabase.ISchema, NSDatabase.ITable> = queryFactory`
+    select distinct TABLE_NAME from ${(p => p.label)}.INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG='${(p => p.label)}'
+  `
+  fetchColumns: QueryBuilder<NSDatabase.ITable, NSDatabase.IColumn> = queryFactory`
+    select COLUMN_NAME, DATA_TYPE FROM ${(p => p.database)}.INFORMATION_SCHEMA.COLUMNS where 
+    table_name = N'${p => p.label}' 
   `
 }
 
@@ -128,5 +129,6 @@ export default {
 
 export {
   CustomQueries,
-  AS400Queries
+  AS400Queries,
+  MSSQLQueries
 }

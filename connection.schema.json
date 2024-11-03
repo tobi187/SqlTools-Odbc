@@ -12,7 +12,8 @@
       "type": "string",
       "enum": [
         "Custom",
-        "ibm iSeries (AS400)"
+        "ibm iSeries (AS400)",
+        "Microsoft SQL Server"
       ],
       "default": "Custom"
     }
