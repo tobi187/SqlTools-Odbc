@@ -16,6 +16,11 @@
         "Microsoft SQL Server"
       ],
       "default": "Custom"
+    },
+    "trimResult": {
+      "title": "Trim Results",
+      "type": "boolean",
+      "default": true
     }
   },
   "required": [
