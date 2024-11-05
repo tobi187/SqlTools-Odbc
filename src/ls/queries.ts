@@ -13,20 +13,31 @@ class CustomQueries implements IBaseQueries {
   describeTable: QueryBuilder<NSDatabase.ITable, any> = queryFactory``;
   fetchColumns: QueryBuilder<NSDatabase.ITable, NSDatabase.IColumn> = queryFactory``;
   fetchFunctions?: QueryBuilder<NSDatabase.ISchema, NSDatabase.IFunction> = queryFactory``;
-
+  getRowDelimiterSuffix(num:number) : string { return num ? "" : "" } // no unused num ts error
 } 
 
 class AS400Queries extends CustomQueries {
   fetchDatabases?: QueryBuilder<never, NSDatabase.IDatabase> = queryFactory`
-    select distinct table_schema as DATABASE from qsys2.SYSTABLES where table_type = 'T'
+    select distinct TABLE_SCHEMA as DATABASE from QSYS2.SYSTABLES where (table_type = 'T' or table_type = 'P') 
   `
   fetchTables: QueryBuilder<NSDatabase.ISchema, NSDatabase.ITable> = queryFactory`
-    select distinct table_name from QSYS2.SYSTABLES where table_schema = '${(p => p.label)}'
+    select distinct TABLE_NAME from QSYS2.SYSTABLES where table_schema = '${(p => p.label)}'
   `
   fetchColumns: QueryBuilder<NSDatabase.ITable, NSDatabase.IColumn> = queryFactory`
     select COLUMN_NAME, DATA_TYPE from QSYS2.syscolumns where 
     table_schema = '${(p => p.database)}' and table_name = '${p => p.label}' 
   `
+  searchTables: QueryBuilder<{ search: string; limit?: number; }, NSDatabase.ITable> = queryFactory`
+    select distinct ${(p => p.database ? 'TABLE_NAME' : 'TABLE_SCHEMA')} from QSYS2.SYSTABLES where (table_type = 'T' or table_type = 'P') 
+    and ${(p => p.database 
+      ? " table_schema = '" + p.database.toUpperCase() + "' and table_name LIKE '"+ (p.search?.toUpperCase() || '') + "%'"
+      : " table_schema LIKE '" + (p.search?.toUpperCase() || '') + "%'"
+    )}
+  `;
+  
+  getRowDelimiterSuffix(num: number): string {
+    return ` fetch first ${num} rows only`
+  }
 }
 
 class MSSQLQueries extends CustomQueries {

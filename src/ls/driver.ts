@@ -7,10 +7,9 @@ import {
     NSDatabase,
     ContextValue,
     Arg0,
-    IBaseQueries,
 } from '@sqltools/types'
 import { v4 as generateId } from 'uuid'
-import { Pool, PoolParameters } from 'odbc'
+import { Pool, PoolParameters, Result } from 'odbc'
 
 type DriverLib = Pool // Pool
 type DriverOptions = PoolParameters // PoolParameters
@@ -31,7 +30,7 @@ export default class OdbcDriver
         },
     ]
 
-    private get customQuery(): IBaseQueries {
+    private get customQuery(): CustomQueries {
         switch (this.credentials.dbType) {
             case "ibm iSeries (AS400)":
                 return new AS400Queries()
@@ -84,6 +83,12 @@ export default class OdbcDriver
         this.connection = null
     }
 
+    getRowDelimiter() {
+        const delim = this.credentials.previewLimit
+        if (!delim || !Number.isInteger(delim)) return ""
+        return this.customQuery.getRowDelimiterSuffix(delim)
+    }
+
     public query: typeof AbstractDriver['prototype']['query'] = async (
         queries,
         opt = {}
@@ -94,19 +99,20 @@ export default class OdbcDriver
         const regex = /((?:[^;'"]*(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*')[^;'"]*)+)|;/
         const splittedQueries = queries.toString().split(regex).filter(Boolean)
         const resultsAgg: NSDatabase.IResult[] = []
-        for (const q of splittedQueries) {
-            let result = null
+        for (let q of splittedQueries) {
+            let result: Result<unknown> = null
             let message = ""
             let exception = null
             try {
-                const res = await conn.query(q)
+                const res = await conn.query(q + this.getRowDelimiter())
                 result = res
                 message = `Query ok with ${res.count} results`
             } catch (ex) {
-                message = `Execution failed with: ${ex.message}`
+                message = `Execution failed with: ${ex}`
                 exception = ex
+                console.log(ex)
+                throw ex
             }
-            // const colsWithTypes = result?.columns?.map((col:any) => `${col.name} (${this.getSqlDataType(col.dataType)})`)
             resultsAgg.push({
                 cols: result?.columns?.map((col:any) => col.name) || [],
                 connId: this.getId(),
@@ -116,7 +122,7 @@ export default class OdbcDriver
                         message,
                     },
                 ],
-                results: result ?? [],
+                results: this.trimResultsIfWanted(result),
                 query: q,
                 error: exception != null,
                 rawError: exception,
@@ -128,15 +134,18 @@ export default class OdbcDriver
         return resultsAgg
     }
 
-    // trimResults(results : Result<any>) {
-    //     if (!results) return []
-    //     const cols = results.columns.filter(col => this.isTypeOfString(col.dataType)).map(col => col.name)
-    //     return results.map((el) => {
-    //         for (const col of cols) {
-    //             el[col] = el[col].trim()
-    //         }
-    //     })
-    // }
+    trimResultsIfWanted(results : Result<unknown>) {
+        if (!results) return []
+        console.log(this.credentials.trimResult)
+        if (!this.credentials.trimResult) return results
+        const cols = results.columns.filter(col => this.isTypeOfString(col.dataType)).map(col => col.name)
+        return results.map((el) => {
+            for (const col of cols) {
+                el[col] = el[col].trim()
+            }
+            return el
+        })
+    }
 
     public async testConnection() {
         const pool = await this.open()
@@ -153,6 +162,7 @@ export default class OdbcDriver
         item,
         //parent,
     }: Arg0<IConnectionDriver['getChildrenForItem']>) {
+        console.log('item', item)
         switch (item.type) {
             case ContextValue.CONNECTION:
             case ContextValue.CONNECTED_CONNECTION:
@@ -177,6 +187,7 @@ export default class OdbcDriver
                 const query = this.customQuery.fetchColumns(item as NSDatabase.ITable)
                 if (!query) return []
                 const results = await this.queryResults(query)
+                console.log(results)
                 return <NSDatabase.IColumn[]>results.map(res => ({
                     database: item.database,
                     table: item.label,
@@ -208,33 +219,22 @@ export default class OdbcDriver
         search: string,
         _extraParams: any = {}
     ): Promise<NSDatabase.SearchableItem[]> {
+        console.log(itemType)
+        console.log('s', search)
+        console.log('e', _extraParams)
         switch (itemType) {
             case ContextValue.TABLE:
             case ContextValue.VIEW:
-                let j = 0
-                return [
-                    {
-                        database: 'fakedb',
-                        label: `${search || 'table'}${j++}`,
-                        type: itemType,
-                        schema: 'fakeschema',
-                        childType: ContextValue.COLUMN,
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `${search || 'table'}${j++}`,
-                        type: itemType,
-                        schema: 'fakeschema',
-                        childType: ContextValue.COLUMN,
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `${search || 'table'}${j++}`,
-                        type: itemType,
-                        schema: 'fakeschema',
-                        childType: ContextValue.COLUMN,
-                    },
-                ]
+                const query = this.customQuery.searchTables({ search, ..._extraParams })
+                console.log(query)
+                if (!query) return []
+                const results = await this.queryResults(query)
+                return results.map(r => ({
+                    label: r['TABLE_NAME'] || r['TABLE_SCHEMA'],
+                    database: _extraParams['database'], 
+                    type: itemType,
+                    schema: 'fakeschema',
+                }))
             case ContextValue.COLUMN:
                 let i = 0
                 return [
@@ -248,51 +248,7 @@ export default class OdbcDriver
                         isNullable: false,
                         iconName: 'column',
                         table: 'fakeTable',
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `${search || 'column'}${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: 'fakeTable',
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `${search || 'column'}${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: 'fakeTable',
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `${search || 'column'}${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: 'fakeTable',
-                    },
-                    {
-                        database: 'fakedb',
-                        label: `${search || 'column'}${i++}`,
-                        type: ContextValue.COLUMN,
-                        dataType: 'faketype',
-                        schema: 'fakeschema',
-                        childType: ContextValue.NO_CHILD,
-                        isNullable: false,
-                        iconName: 'column',
-                        table: 'fakeTable',
-                    },
+                    }
                 ]
         }
         return []
