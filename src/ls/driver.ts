@@ -64,14 +64,17 @@ export default class OdbcDriver
         }
         try {
             const { pool } = this.lib
-            const dbPool = await pool(this.createConnectionString())
+            // const dbPool = await pool(this.createConnectionString())
+            const dbPool = pool(this.createConnectionString())
             /**
              * open your connection here!!!
              */
 
             // this.connection = fakeDbLib.open()
-            this.connection = Promise.resolve(dbPool)
-            return Promise.resolve(dbPool)
+            // this.connection = Promise.resolve(dbPool)
+            // return Promise.resolve(dbPool)
+            this.connection = dbPool
+            return dbPool
         } catch (err) {
             throw (err)
         }
@@ -103,6 +106,11 @@ export default class OdbcDriver
             let result: Result<unknown> = null
             let message = ""
             let exception = null
+            if (this.failOnDeleteUpdateWithoutWhere(q)) {
+                message = "Updates Or Deletes not allowed without where clause"
+                resultsAgg.push(this.getFailRes(message, opt.requestId, q))
+                continue
+            }
             try {
                 const res = await conn.query(q + this.getRowDelimiter())
                 result = res
@@ -110,7 +118,7 @@ export default class OdbcDriver
             } catch (ex) {
                 message = `Execution failed with: ${ex}`
                 exception = ex
-                console.log(ex)
+                console.warn(ex)
                 throw ex
             }
             resultsAgg.push({
@@ -134,6 +142,21 @@ export default class OdbcDriver
         return resultsAgg
     }
 
+    getFailRes(message:string, rqId: string, rq: string) {
+        return {
+            resultId: generateId(), 
+            requestId: rqId, 
+            connId: this.getId(), 
+            query: rq, 
+            results:[ ], 
+            cols:[], 
+            messages: [{
+                date: new Date(), 
+                message: message
+            }]
+        }
+    }
+
     trimResultsIfWanted(results : Result<unknown>) {
         if (!results) return []
         console.log(this.credentials.trimResult)
@@ -145,6 +168,17 @@ export default class OdbcDriver
             }
             return el
         })
+    }
+
+    failOnDeleteUpdateWithoutWhere(q:string) {
+        if (!this.credentials.restrictUpdate) {
+            return true;
+        }
+        const query = q.trim().toLowerCase()
+        if (query.startsWith('update') || query.startsWith('delete')) {
+            return query.includes('where')
+        }
+        return true
     }
 
     public async testConnection() {

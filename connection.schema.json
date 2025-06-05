@@ -21,6 +21,12 @@
       "title": "Trim Results",
       "type": "boolean",
       "default": true
+    },
+    "restrictUpdate": {
+      "title": "Only allow Updates and Deletes when where clause is present",
+      "type": "boolean",
+      "default": "false",
+      "description": "Only executes update and delete statements when where clause is present\nAttention: It just checks if the string where is present whithin the statement when it's starts with update or delete"
     }
   },
   "required": [
