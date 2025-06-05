@@ -2,13 +2,6 @@
     "FSharp.suggestGitignore": false,
     "sqltools.connections": [
         {
-            "dbType": "Custom",
-            "previewLimit": 50,
-            "driver": "SqlTools Odbc",
-            "name": "asdasd",
-            "connectionString": "Driver={iSeries Access ODBC Driver};System=walza0.bw.walz.info;Uid=RAAUTOTST2;Pwd=wa15wei12z--;"
-        },
-        {
             "previewLimit": 50,
             "driver": "SQLite",
             "name": "lite",

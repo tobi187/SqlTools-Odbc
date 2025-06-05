@@ -19,7 +19,7 @@
     "watch": "tsc -watch -p ./"
   },
   "keywords": [
-    "driver-template",
+    "odbc",
     "sqltools-driver"
   ],
   "categories": [
